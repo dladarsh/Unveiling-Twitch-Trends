@@ -1,0 +1,196 @@
+---
+title: "Unveiling Twitch Trends"
+author: 'Loka Adarsh Dronamraju'
+date: "2023-11-27"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen = 999) 
+library(ggplot2)
+library(tidyverse)
+library(MASS)
+library(MLmetrics)
+library(Metrics)
+library(readr)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+data <- read_csv("C:\\Users\\dlada\\OneDrive\\Documents\\twitchdata-update.csv")
+```
+
+```{r}
+dim(data)
+```
+
+```{r}
+str(data)
+summary(data)
+head(data)
+```
+
+```{r}
+sum_of_duplicates <- sum(duplicated(data))
+print(sum_of_duplicates)
+sum(is.na(data))
+```
+```{r}
+null_counts <- colSums(is.na(data))
+null_counts
+```
+
+## EXPLORATORY DATA ANALYSIS
+
+i. Histogram
+
+```{r}
+ggplot(data, aes(x = `Average viewers`)) +
+  geom_histogram(binwidth = 5000, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Average Viewers",
+       x = "Average Viewers",
+       y = "Channel Count")
+```
+
+ii. Boxplot
+```{r}
+
+ggplot(data, aes(y = `Stream time(minutes)`)) +
+  geom_boxplot(fill = "orange", color = "black") +
+  labs(title = "Boxplot of Stream Time (Minutes)",
+       y = "Stream Duration")
+
+```
+
+iii. Overlay Histogram
+```{r}
+
+ggplot(data, aes(x = `Peak viewers`, fill = "Peak")) +
+  geom_histogram(binwidth = 5000, alpha = 0.5) +
+  geom_histogram(aes(x = `Average viewers`, fill = "Average"), binwidth = 5000, alpha = 0.5) +
+  labs(title = "Overlay Histogram of Peak and Average Viewers",
+       x = "Viewers",
+       y = "Channel",
+       fill = "Legend") +
+  scale_fill_manual(values = c("Peak" = "blue", "Average" = "green"))
+```
+
+
+#T-test
+
+```{r}
+unique(data$Language)
+```
+
+```{r}
+english_data <- subset(data, Language == "English")
+other_language_data <- subset(data, Language != "English")
+str(english_data)
+str(other_language_data)
+```
+
+```{r}
+t_test_result <- t.test(english_data$'Followers gained', other_language_data$'Followers gained')
+print(t_test_result)
+```
+
+
+# Multiple Linear Regression
+
+```{r}
+  colnames(data)[colnames(data) == "Followers gained"] <- "Followers_gained"
+  colnames(data)[colnames(data) == "Average viewers"] <- "Average_Viewers"
+```
+
+```{r}
+  set.seed(123)
+  
+  indices <- sample(1:nrow(data), size = 0.8 * nrow(data))
+  train_data <- data[indices, ]
+  test_data <- data[-indices, ]
+  
+  linear_model <- lm(Followers_gained ~ . - Channel, data = data)
+  
+  
+  summary(linear_model)
+  
+  
+  test_predictions_linear <- predict(linear_model, newdata = test_data)
+  summary(test_predictions_linear)
+  
+  test_actual_values <- test_data$Followers_gained
+  summary(test_actual_values)
+  
+  mae_linear <- mean(abs(test_actual_values - test_predictions_linear))
+  cat("Mean Absolute Error (Linear Regression):", mae_linear, "\n")
+  
+  
+  mse_linear <- sqrt(mean((test_actual_values - test_predictions_linear)^2))
+  cat("Mean Squared Error (Linear Regression):", mse_linear, "\n")
+```
+
+#forward stepwise Regression
+
+```{r}
+
+ set.seed(123)
+  
+  indices <- sample(1:nrow(data), size = 0.8 * nrow(data))
+  train_data <- data[indices, ]
+  test_data <- data[-indices, ]
+init_model <- lm(Followers ~ 1, data = test_data)
+all_model <- lm(Followers ~ . - Channel, data = test_data)
+forwardmodel <- stepAIC(init_model, direction = "forward", scope = formula(all_model))
+summary(forwardmodel)
+
+```
+
+```{r}
+forwardmodel$anova
+```
+
+```{r}
+forward_pred <-predict(object = forwardmodel, newdata = test_data)
+MAE(test_data$Followers_gained, forward_pred)
+
+```
+
+```{r}
+MSE(test_data$Followers_gained, forward_pred)
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(forwardmodel)
+```
+
+```{r}
+backwardmodel <- stepAIC(all_model, direction = "backward")
+summary(backwardmodel)
+
+```
+
+```{r}
+backwardmodel$anova
+```
+
+```{r}
+
+backward_pred <-predict(object = backwardmodel, newdata = test_data)
+MAE(test_data$Followers_gained, backward_pred)
+MSE(test_data$Followers_gained, backward_pred)
+
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(backwardmodel)
+```
